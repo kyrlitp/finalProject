@@ -1,6 +1,8 @@
-#include <MIDI.h>
-
 int tempo = 200; //this is in ms
+boolean lastChannelButtonState[1] = { LOW };
+boolean channelButtonState[1] = { LOW }; 
+int randomButton1 = 11;
+int randomSequence = 0;
 int grooveAmount = 50;
 int currentStep = 0;
 int isEvenBeat = 0;
@@ -33,11 +35,24 @@ int midiNotes[3] = { 36 /*kick = C1*/, 42 /*hat = F#1*/, 38 /*sneuh = D1*/ };
 void setup() {
   Serial.begin(9600);
   // put your setup code here, to run once:
+  pinMode(randomButton1, INPUT);
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
+  seqRandomizer();
   playSequenceMIDI();
+}
+
+void seqRandomizer() {
+  lastChannelButtonState[0] = channelButtonState[0];
+  channelButtonState[0] = digitalRead(randomButton1);
+
+  //exact moment when button changes state
+  if (channelButtonState[0] == HIGH && lastChannelButtonState[0] == LOW) {
+    randomSequence = random(0,3); //syntax: min (inclusive), max (exclusive)
+    Serial.println(randomSequence);
+  }
 }
 
 void playSequenceMIDI() {
@@ -66,7 +81,7 @@ void playSequenceMIDI() {
     //calculate...
     //and set things on
     for (int i = 0; i < 3; i++) {
-      if (hardCodedSequence[0][i][currentStep] == true) {
+      if (hardCodedSequence[randomSequence][i][currentStep] == true) {
         usbMIDI.sendNoteOn(midiNotes[i], 127, 1);
       }
     }
