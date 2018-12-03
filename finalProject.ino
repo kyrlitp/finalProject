@@ -1,7 +1,7 @@
 int tempo = 600; //this is in ms
 boolean lastChannelButtonState[2] = { LOW, LOW };
 boolean channelButtonState[2] = { LOW, LOW };
-int randomButton1 = 11;
+int bigBlueButton = 11;
 int randomSequence = 0;
 int groove = 0;
 int grooveAmount = 50;
@@ -9,8 +9,10 @@ int currentStep = 0;
 int isEvenBeat = 0;
 unsigned long lastStepTime = 0;
 unsigned long nextStepTime = 0;
-int timeAcross4Hats = 0;
-int ledPin = 13;
+int ledPin = 16;
+int ledPin2 = 15;
+int ledPin3 = 14;
+int ledPin4 = 13;
 int tempoDetect = 0;
 unsigned long beginTempoDetect = 0;
 unsigned long endTempoDetect = 0;
@@ -25,9 +27,8 @@ int clockAdd = 0;
 int previousClockNum = 0;
 int MIDICounter = 1;
 int TEMPOCounter = 0;
-// int acceptableMidiValues[] = {} // need to limit this to 36 to 51 (C1 to D#2)
 
-//boolean mySequenwece[3][8] = {
+//boolean mySequence[3][8] = {
 //  { LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW }, //KICK
 //  { LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW }, //HAT
 //  { LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW }, //SNARE
@@ -73,8 +74,11 @@ int midiNotes[3] = { 36 /*kick = C1*/, 42 /*hat = F#1*/, 38 /*sneuh = D1*/ };
 void setup() {
   // list of inputs and outputs
   Serial.begin(31250); //midi sync amnt
-  pinMode(randomButton1, INPUT);
+  pinMode(bigBlueButton, INPUT);
   pinMode(ledPin, OUTPUT);
+  pinMode(ledPin2, OUTPUT);
+  pinMode(ledPin3, OUTPUT);
+  pinMode(ledPin4, OUTPUT);
   // usbMIDI setup
   //  usbMIDI.setHandleNoteOff(tempoCalculator);
   usbMIDI.setHandleNoteOn(onNoteOn);
@@ -84,6 +88,7 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
+  LEDs();
   usbMIDI.read(); //allows onNoteOn and onNoteOff to work.
   if (tempoDetected == 1) { // we need to make sure we actually have a tempo before we do anything. (duh.)
     seqRandomizer();
@@ -103,7 +108,7 @@ void RealTimeSystem(byte realtimebyte) {
       }
       if (clockAdd == 24) { //ON THE LAST "TICK" (#24)...
         endTempoDetect = millis() - beginTempoDetect; //SET THE END POINT.
-        tempo = endTempoDetect/2; //THE TEMPO IS (1 & 2 & 3 & 4 &) 
+        tempo = endTempoDetect / 2; //THE TEMPO IS (1 & 2 & 3 & 4 &)
         groove = (tempo / 2);
         tempoDetected = 1;
       }
@@ -141,6 +146,10 @@ void RealTimeSystem(byte realtimebyte) {
     tempoDetected = 0;
     currentStep = 0;
     MIDICounter = 0;
+    digitalWrite(ledPin, LOW);
+    digitalWrite(ledPin2, LOW);
+    digitalWrite(ledPin3, LOW);
+    digitalWrite(ledPin4, LOW);
   }
 }
 
@@ -218,12 +227,48 @@ void onNoteOff(byte channel, byte note, byte velocity) {
 
 void seqRandomizer() {
   lastChannelButtonState[0] = channelButtonState[0];
-  channelButtonState[0] = digitalRead(randomButton1);
+  channelButtonState[0] = digitalRead(bigBlueButton);
 
   //exact moment when button changes state
   if (channelButtonState[0] == HIGH && lastChannelButtonState[0] == LOW) {
-    randomSequence = random(0, 3); //syntax: min (inclusive), max (exclusive)
-    Serial.println(randomSequence);
+    randomSequence = random(0, 6); //syntax: min (inclusive), max (exclusive)
+    currentStep = 0;
+  }
+}
+
+void LEDs() {
+  // BIG BLUE BUTTON LED
+
+  if (digitalRead(bigBlueButton) == HIGH) {
+    digitalWrite(ledPin, HIGH);
+  }
+  else if (digitalRead(bigBlueButton) == LOW) {
+    digitalWrite(ledPin, LOW);
+  }
+
+  // GROOVE LIGHT LEDS
+  if (tempoDetected == 1) {
+
+    if (hardCodedSequence[randomSequence][0][currentStep] == true) {
+      digitalWrite(ledPin2, HIGH);
+    }
+    else if (hardCodedSequence[randomSequence][0][currentStep] == false) {
+      digitalWrite(ledPin2, LOW);
+    }
+
+    if (hardCodedSequence[randomSequence][1][currentStep] == true) {
+      digitalWrite(ledPin3, HIGH);
+    }
+    else if (hardCodedSequence[randomSequence][1][currentStep] == false) {
+      digitalWrite(ledPin3, LOW);
+    }
+
+    if (hardCodedSequence[randomSequence][2][currentStep] == true) {
+      digitalWrite(ledPin4, HIGH);
+    }
+    else if (hardCodedSequence[randomSequence][2][currentStep] == false) {
+      digitalWrite(ledPin4, LOW);
+    }
   }
 }
 
