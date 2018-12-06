@@ -1,38 +1,44 @@
-int tempo = 600; //this is in ms
-boolean lastChannelButtonState[2] = { LOW, LOW };
-boolean channelButtonState[2] = { LOW, LOW };
-int bigBlueButton = 11;
-int randomSequence = 0;
-int groove = 0;
-int grooveAmount = 50;
-int currentStep = 0;
-int isEvenBeat = 0;
-unsigned long lastStepTime = 0;
-unsigned long nextStepTime = 0;
+//TEENSY GROOVEBOX, by Jalen Sariñana Edington
+
+//PIN MAPPINGS
+
 int ledPin = 16;
 int ledPin2 = 15;
 int ledPin3 = 14;
 int ledPin4 = 13;
+int bigBlueButton = 11;
+
+//TIME-BASED VARIABLES (tempo, groove, etc.)
+
+////TEMPO DETECTION
 int tempoDetect = 0;
 unsigned long beginTempoDetect = 0;
 unsigned long endTempoDetect = 0;
 int tempoDetected = 0;
+
+////TEMPO/GROOVE VALUES (variables here are placeholders)
+int tempo = 600;
+int groove = 0;
+int grooveAmount = 50;
+
+//COUNTERS, etc.
+int currentStep = 0; //Variable that determines what step we're on.
+unsigned long nextStepTime = 0; //We're going to need this to determine when our next step is.
+boolean lastChannelButtonState[2] = { LOW, LOW };
+boolean channelButtonState[2] = { LOW, LOW };
+int randomSequence = 0; //This variable will change the selected drum pattern the user has selected.
+int clockAdd = 0; //This shows us what step the MIDI Clock is on (hint: 24 steps in a quarter note!).
+
+
+//MIDI MAPPINGS THAT realTimeSystem() NEEDS
+
 byte midi_start = 250;
 byte midi_stop = 252;
 byte midi_clock = 248;
 byte midi_continue = 251;
-// int play_flag = 0;
-byte data;
-int clockAdd = 0;
-int previousClockNum = 0;
-int MIDICounter = 1;
-int TEMPOCounter = 0;
 
-//boolean mySequence[3][8] = {
-//  { LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW }, //KICK
-//  { LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW }, //HAT
-//  { LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW }, //SNARE
-//};
+//MIDI VALUES (drum patterns, midi notes, etc.)
+
 boolean hardCodedSequence[6][3][8] = {
   {
     { HIGH, LOW, LOW, LOW, LOW, HIGH, LOW, LOW }, //KICK
@@ -67,45 +73,44 @@ boolean hardCodedSequence[6][3][8] = {
 };
 
 
-int midiNotes[3] = { 36 /*kick = C1*/, 42 /*hat = F#1*/, 38 /*sneuh = D1*/ };
+int midiNotes[3] = { 36 /*Kick = C1*/, 42 /*Hat = F#1*/, 38 /*Snare = D1*/ };
 
 
-//
+
 void setup() {
-  // list of inputs and outputs
-  Serial.begin(31250); //midi sync amnt
+  // List of Inputs and Outputs
+  Serial.begin(31250); //MIDI Sync Amount.
   pinMode(bigBlueButton, INPUT);
   pinMode(ledPin, OUTPUT);
   pinMode(ledPin2, OUTPUT);
   pinMode(ledPin3, OUTPUT);
   pinMode(ledPin4, OUTPUT);
+  
   // usbMIDI setup
-  //  usbMIDI.setHandleNoteOff(tempoCalculator);
-  usbMIDI.setHandleNoteOn(onNoteOn);
-  usbMIDI.setHandleNoteOff(onNoteOff);
   usbMIDI.setHandleRealTimeSystem(RealTimeSystem);
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
   LEDs();
-  usbMIDI.read(); //allows onNoteOn and onNoteOff to work.
-  if (tempoDetected == 1) { // we need to make sure we actually have a tempo before we do anything. (duh.)
+  usbMIDI.read(); //allows realTimeSystem to work.
+  if (tempoDetected == 1) { // We need to make sure we actually have a tempo before we do anything. (duh.)
     seqRandomizer();
     playSequenceMIDI();
   }
 }
 
-void RealTimeSystem(byte realtimebyte) {
+void RealTimeSystem(byte realtimebyte) { //This function reads the MIDI Messages "Stop", "Start", "Continue" and "Clock" in REALTIME (hence the name...). We need these to map our tempo and turn the program on or off.
 
   //EVERYTHING THAT HAS TO DO WITH MIDI CLOCK TICKS
 
-  //BEGIN TEMPO DETECTION CODE//
+  //TEMPO DETECTION
   if (realtimebyte == midi_clock) {
+    
     if (tempoDetected == 0) {
       if (clockAdd == 0) { //ON THE FIRST "TICK"...
         beginTempoDetect = millis(); //SET THE START POINT.
       }
+      
       if (clockAdd == 24) { //ON THE LAST "TICK" (#24)...
         endTempoDetect = millis() - beginTempoDetect; //SET THE END POINT.
         tempo = endTempoDetect / 2; //THE TEMPO IS (1 & 2 & 3 & 4 &)
@@ -113,39 +118,23 @@ void RealTimeSystem(byte realtimebyte) {
         tempoDetected = 1;
       }
     }
-    //END TEMPO DETECTION CODE//
-
-    if (clockAdd == 1) {
-
-      //MIDI COUNTER CODE
-
-      if (MIDICounter > 7) {
-        MIDICounter = 0;
-      }
-      MIDICounter++;
-      Serial.print("MIDI Counter: ");
-      Serial.println(MIDICounter);
-    }
+    
+    //COUNTERS
 
     if (clockAdd == 24) {
       clockAdd = 0;
     }
-
+    
     clockAdd++;
-
-
   }
+  
   if (realtimebyte == midi_start || realtimebyte == midi_continue) {
     clockAdd = 0; //IF THE MIDI IS (RE)STARTED, START THE CLOCK TICK AT 0.
-    //play_flag = 1;
   }
 
-  if (realtimebyte == midi_stop) { //WHEN MIDI IS STOPPED, RESET EVERYTHING.
-    //play_flag = 0;
-    //write nested for loop that goes through 8 3 times so that everything is set to low
-    tempoDetected = 0;
-    currentStep = 0;
-    MIDICounter = 0;
+  if (realtimebyte == midi_stop) { //WHEN MIDI IS STOPPED, TURN EVERYTHING OFF!
+    tempoDetected = 0; //We need to turn this off so we can re-detect the tempo in case the user wants to change it.
+    currentStep = 0; //Same as above.
     digitalWrite(ledPin, LOW);
     digitalWrite(ledPin2, LOW);
     digitalWrite(ledPin3, LOW);
@@ -153,90 +142,18 @@ void RealTimeSystem(byte realtimebyte) {
   }
 }
 
-void onNoteOn(byte channel, byte note, byte velocity) {
-  digitalWrite(ledPin, HIGH); //any note on turns on led
-  //  Serial.println(note);
-  //  Serial.println(velocity);
-  //  Serial.println("ON");
-  //  if (tempoDetected == 1) {
-  //    if
-  //  }
-  if ((note == 36) || (note == 42) || (note == 38)) {
-    if (note == 36) {
-      note = 0;
-    }
-    if (note == 42) {
-      note = 1;
-    }
-    if (note == 38) {
-      note = 2;
-    }
-
-    hardCodedSequence[randomSequence][note][MIDICounter - 1] = HIGH;
-
-    if (note == 0) {
-      Serial.println("onNoteOn()");
-      // Print to Serial Monitor what the value of the Sequence is.
-      Serial.print("hardCodedSequence[randomSequence][");
-      Serial.print(note);
-      Serial.print("][");
-      Serial.print(MIDICounter - 1);
-      Serial.println("] = HIGH");
-    }
-
-  }
-}
-void onNoteOff(byte channel, byte note, byte velocity) {
-  digitalWrite(ledPin, LOW); //any note on turns on led
-  //  Serial.println(note);
-  //  Serial.println(velocity);
-  //  Serial.println("ON");
-  //  if (tempoDetected == 1) {
-  //    if
-  //  }
-  if ((note == 36) || (note == 42) || (note == 38)) {
-    if (note == 36) {
-      note = 0;
-    }
-    if (note == 42) {
-      note = 1;
-    }
-    if (note == 38) {
-      note = 2;
-    }
-
-    hardCodedSequence[randomSequence][note][MIDICounter - 1] = LOW;
-
-    // Print to Serial Monitor what the value of the Sequence is.
-
-    if (note == 0) {
-      Serial.print("hardCodedSequence[randomSequence][");
-      Serial.print(note);
-      Serial.print(note);
-      Serial.print("][");
-      Serial.print(MIDICounter - 1);
-      Serial.println("] = LOW");
-    }
-
-
-  }
-}
-
-
-
-
-void seqRandomizer() {
+void seqRandomizer() { //This function generates a random number when the big blue button is hit that maps to an existing drum pattern so it can be played.
   lastChannelButtonState[0] = channelButtonState[0];
   channelButtonState[0] = digitalRead(bigBlueButton);
 
-  //exact moment when button changes state
+  //This is the exact moment when button changes state
   if (channelButtonState[0] == HIGH && lastChannelButtonState[0] == LOW) {
     randomSequence = random(0, 6); //syntax: min (inclusive), max (exclusive)
     currentStep = 0;
   }
 }
 
-void LEDs() {
+void LEDs() { //This function turns on or off our LEDs when sets of events happen.
   // BIG BLUE BUTTON LED
 
   if (digitalRead(bigBlueButton) == HIGH) {
@@ -247,7 +164,8 @@ void LEDs() {
   }
 
   // GROOVE LIGHT LEDS
-  if (tempoDetected == 1) {
+  
+  if (tempoDetected == 1) { //Remember, we only want these Groove lights to go on if there's actually anything being played...
 
     if (hardCodedSequence[randomSequence][0][currentStep] == true) {
       digitalWrite(ledPin2, HIGH);
@@ -272,24 +190,27 @@ void LEDs() {
   }
 }
 
-void playSequenceMIDI() {
+void playSequenceMIDI() { //This function plays our MIDI Sequence, and correctly moves onto the next step when it is appropriate. This also is where the "groove" is contained.
   grooveAmount = analogRead(A14); //NEEDS TO GET MAPPED
   grooveAmount = map(grooveAmount, 0, 1023, 0, groove);
 
 
-  if (millis() > nextStepTime) { //THIS IS THE MOMENT time passes onto next step
+  if (millis() > nextStepTime) { //This is only true the MOMENT the time passes onto the next step. Without this message, we would constantly be receiving and sending messages and crash the program.
 
-    //turn things off
+    //Before anything is played, it's a good idea to send a Note Off just in case.
     for (int i = 0; i < 3; i++) {
       usbMIDI.sendNoteOff(midiNotes[i], 0, 1);
     }
 
-    //increment
+    //STEP SEQUENCING
+    
     if (currentStep > 7) { //once step 8 is done...
       currentStep = 0; //it will reset back to step 1.
     }
     currentStep++;
 
+    //GROOVE
+    
     if ((currentStep % 2) == 0) {
       nextStepTime = millis() + grooveAmount + tempo;
     }
@@ -297,13 +218,7 @@ void playSequenceMIDI() {
       nextStepTime = millis() - grooveAmount + tempo;
     }
 
-    // lastStepTime = millis();
-    Serial.print("Groovebox thinks the step is: ");
-    Serial.println(currentStep);
-
-
-    //calculate...
-    //and set things on
+    //On our current step, we want to play the value LOW or HIGH for each of our MIDI Notes.
     for (int i = 0; i < 3; i++) {
       if (hardCodedSequence[randomSequence][i][currentStep] == true) {
         usbMIDI.sendNoteOn(midiNotes[i], 127, 1);
